@@ -80,8 +80,8 @@ def transcribe_step(self: "Transcriber"):
         language=           self.language,
         temperature=        self.temperature(),
         fp16=               True if self.dtype == torch.float16 else False,
-        beam_size=          15 if self.temperature() == 0 else None,
-        best_of=            None if self.temperature() == 0 else 15,
+        beam_size=          self.beam_size if self.temperature() == 0 else None,
+        best_of=            None if self.temperature() == 0 else self.best_of,
     )
 
     result: DecodingResult = model.decode(mel, options)

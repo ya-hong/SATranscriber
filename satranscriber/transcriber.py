@@ -18,18 +18,22 @@ class Transcriber:
         self,
         audio_stream: Stream,
         model: str =                                "medium",
+        task: str =             					"transcribe",
         language: str =         					"English",
         temperature: Union[Tuple[float], float] = 	(0, 0.2, 0.6),
-        task: str =             					"transcribe",
+        beam_size: int =                            10,
+        best_of: int =                              10,
         fp16: bool =								True,
         verbose: bool =         					True,
     ) -> None:
 
         self.model: whisper.Whisper = whisper.load_model(model, "cuda")
         self.audio_stream = audio_stream
+        self.task = task
         self.language = language 
         self.temperature_list = temperature if isinstance(temperature, Iterable) else [temperature]
-        self.task = task
+        self.beam_size = beam_size
+        self.best_of = best_of
         self.dtype = torch.float16 if fp16 else torch.float32
         self.verbose = verbose
 
