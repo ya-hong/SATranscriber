@@ -1,3 +1,0 @@
-[submodule "whisper"]
-	path = whisper
-	url = https://github.com/ya-hong/whisper.git
