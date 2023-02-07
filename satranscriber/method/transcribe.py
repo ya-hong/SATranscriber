@@ -1,7 +1,7 @@
 from typing import *
 
 if TYPE_CHECKING:
-    from streaming_translation.transcriber import Transcriber
+    from satranscriber.transcriber import Transcriber
 
 import torch
 import whisper

@@ -1,4 +1,4 @@
-from streaming_translation.stream import speaker
+from satranscriber.stream import speaker
 from .byte2np import load_audio
 import whisper
 import torch

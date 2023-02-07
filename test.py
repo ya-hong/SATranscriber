@@ -1,8 +1,8 @@
-from streaming_translation.audio2text import async_whisper
+from satranscriber.audio2text import async_whisper
 import time
 import whisper
-from streaming_translation.audio2text.byte2np import load_audio
-from streaming_translation.text2text import youdao
+from satranscriber.audio2text.byte2np import load_audio
+from satranscriber.text2text import youdao
 
 translator = youdao.translator("en")
 with async_whisper.WhisperStream("English") as stream:

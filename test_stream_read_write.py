@@ -1,4 +1,4 @@
-from streaming_translation.stream import speaker
+from satranscriber.stream import speaker
 import time
 import wave
 import pyaudiowpatch as pyaudio
