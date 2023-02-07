@@ -133,10 +133,10 @@ class Transcriber:
 if __name__ == "__main__":
     from .audio import speaker
     import time
-    from .text2text import baidu, youdao
+    from .translator import baidu, youdao
 
     btranslator = baidu.Translator("jp")
-    ytranslator = youdao.translator("ja")
+    ytranslator = youdao.Translator("ja")
 
     with speaker.Stream() as stream, Transcriber(stream, language="ja", fp16=True, task="transcribe", temperature=0) as transcriber:
         while True:

@@ -24,7 +24,7 @@ def truncate(q):
     return q if size <= 20 else q[0:10] + str(size) + q[size - 10:size]
 
 
-class translator:
+class Translator:
     def __init__(self, source_lang="ja", target_lang="zh_CHS") -> None:
         self.source_lang = source_lang
         self.target_lang = target_lang
@@ -69,5 +69,5 @@ class translator:
 
 if __name__ == "__main__":
     q = "キス"
-    t = translator()
+    t = Translator()
     print(t.translate(q))
