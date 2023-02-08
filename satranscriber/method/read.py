@@ -72,6 +72,11 @@ def read(
     一次read最好至少输出一句话。如果什么也不输出需要调整策略
     """
 
+    if self.verbose:
+        from pprint import pprint
+        if self.decode_result is not None:
+            pprint(self.decode_result)
+
     if self.decode_result is None or not r.is_qulity(self.decode_result):
         length = self.mel_buffer.shape[-1]
         if length > self.NON_TRANSABLE_LENGTH and not self.try_temperature_up() and length > N_FRAMES:

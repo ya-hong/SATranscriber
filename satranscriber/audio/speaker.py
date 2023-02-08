@@ -1,6 +1,7 @@
 import pyaudiowpatch as pyaudio
 import numpy as np
 import threading
+import librosa
 
 from . import stream
 
@@ -32,13 +33,14 @@ class Stream(stream.Stream):
         speaker = get_speaker()
 
         self.speaker_sr = int(speaker["defaultSampleRate"])
+        self.speaker_ac = speaker["maxInputChannels"]
 
-        self.buffer = np.ndarray(0, dtype=np.float32)
+        self.buffer = np.ndarray((self.speaker_ac, 0), dtype=np.float32)
         self.lock = threading.Lock()
 
         self.stream = self.p.open(
             format=                 pyaudio.paInt16,
-            channels=               2,
+            channels=               self.speaker_ac,
             rate=                   self.speaker_sr,
             frames_per_buffer=      1024,
             input=                  True,
@@ -55,27 +57,28 @@ class Stream(stream.Stream):
 
     def read(self) -> np.ndarray:
         with self.lock:
-            length = len(self.buffer)
-            k = self.speaker_sr / Stream.SAMPLE_RATE
-            result = list()
-            end = 0
-            for group in range(0,  int(length / k)):
-                start = round(group * k)
-                end = round((group + 1) * k)
-                if end == start:
-                    end += 1
-                if end > length:
-                    break
-                result.append(np.average(self.buffer[start:end]))
-            self.buffer = self.buffer[end:]
-
-        return np.fromiter(result, dtype=np.float32)
+            if self.buffer.shape[-1] == 0:
+                return np.ndarray(0, np.float32)
+            result = librosa.resample(
+                self.buffer, 
+                res_type="kaiser_fast", 
+                orig_sr=self.speaker_sr, 
+                target_sr=self.SAMPLE_RATE, 
+                scale=True
+            )
+            """
+            scale 需要为True, 要保证音量
+            """
+            self.buffer = np.ndarray((self.speaker_ac, 0), dtype=np.float32)
+            
+            return np.sum(result, axis=0, keepdims=False) / self.speaker_ac / 32768.0
 
     def callback(self, in_data, frame_count, time_info, status):
-        with self.lock:
-            array = np.frombuffer(in_data, dtype=np.int16).astype(np.float32) / 32768.0
-            one_channel = (array[0::2] + array[1::2]) / 2
-            self.buffer = np.concatenate([self.buffer, one_channel])
+        with self.lock: 
+            mat = np.frombuffer(
+                in_data, dtype=np.int16
+            ).astype(np.float32).reshape((self.speaker_ac, -1), order="F")
+            self.buffer = np.concatenate([self.buffer, mat], axis=1)
         return (None, pyaudio.paContinue)
 
 
