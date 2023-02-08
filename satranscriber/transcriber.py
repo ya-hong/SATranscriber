@@ -102,9 +102,9 @@ class Transcriber:
 
             self.lock.acquire()
             try:
-                self.read_step()
                 if self.mel_buffer.shape[-1] > N_FRAMES:
                     self.output_buffer.extend(read_function(self, ReadRequest(padding=500)))
+                self.read_step()
                 transcribe_step_function(self)
             except:
                 self.is_exited = True
@@ -132,22 +132,3 @@ class Transcriber:
             self.try_read = False
             self.lock.release()
 
-
-if __name__ == "__main__":
-    from .audio import speaker
-    import time
-    from .translator import baidu, youdao
-
-    btranslator = baidu.Translator("jp")
-    ytranslator = youdao.Translator("ja")
-
-    with speaker.Stream() as stream, Transcriber(stream, language="ja", fp16=True, task="transcribe", temperature=0) as transcriber:
-        while True:
-            time.sleep(2)
-            results = transcriber.read(ReadRequest(logprob_threshold=-0.5, padding=200))
-            print([result.text for result in results])
-            for result in results:
-                print("=====>", btranslator.translate(result.text))
-                print("=====>", ytranslator.translate(result.text))
-            
-                
