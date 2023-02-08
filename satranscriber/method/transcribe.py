@@ -91,10 +91,10 @@ def transcribe_step(self: "Transcriber"):
         language=self.language, 
         task=self.task)
     
-    if result.avg_logprob < -1 or result.compression_ratio > 2.4:
+    if mel.shape[-1] > self.NON_TRANSABLE_LENGTH and (result.avg_logprob < -1 or result.compression_ratio > 2.4):
+        # 达到可转录长度，但转录效果达不到baseline -> 升温
         self.try_temperature_up()
         return
     
-    self.try_temperature_down()
     result_list = split_decode_result(tokenizer, result)
     self.result_buffer = result_list

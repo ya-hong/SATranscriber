@@ -14,6 +14,8 @@ from .method.transcribe import transcribe_step as transcribe_step_function
 
 
 class Transcriber:
+    NON_TRANSABLE_LENGTH = 200
+
     def __init__(
         self,
         audio_stream: Stream,
@@ -24,7 +26,7 @@ class Transcriber:
         beam_size: int =                            10,
         best_of: int =                              10,
         fp16: bool =								True,
-        verbose: bool =         					True,
+        verbose: bool =         					False,
         **kwargs
     ) -> None:
 
@@ -69,14 +71,12 @@ class Transcriber:
         return self.temperature_list[self.temperature_idx]
     
     def try_temperature_up(self) -> bool:
+        """
+        升温。在一般情况加不应该使温度降低, 除非转录的音频发生变化。
+        所以没有相应的try_temperature_down方法, 而是在extend_offset的同时使温度置0
+        """
         if self.temperature_idx + 1 < len(self.temperature_list):
             self.temperature_idx += 1
-            return True
-        return False
-    
-    def try_temperature_down(self) -> bool:
-        if self.temperature_idx > 0:
-            self.temperature_idx -= 1
             return True
         return False
 
@@ -120,6 +120,7 @@ class Transcriber:
         def qualify(result: TranscribeResult):
             return result.avg_logprob > r.logprob_threshold and \
                 result.compression_ratio < r.compression_ratio_threshold and \
+                result.no_speech_prob < r.no_speech_threshold and \
                 len(result.text) >= r.length_threshold
         
         self.try_read = True

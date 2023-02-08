@@ -16,6 +16,7 @@ def get_parser() -> argparse.ArgumentParser:
     
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("config", default=None, type=str, help="path to json config file")
+    parser.add_argument("--verbose", default=False, type=bool)
 
     transcriber = parser.add_argument_group("transcriber")
     transcriber.add_argument("--model", default="medium", choices=whisper.available_models(), help="name of the Whisper model to use")
@@ -29,7 +30,7 @@ def get_parser() -> argparse.ArgumentParser:
     verification = parser.add_argument_group("verification")
     verification.add_argument("--logprob_threshold", type=float, default=-0.6, help="if the average log probability is lower than this value, treat the decoding as failed")
     verification.add_argument("--compression_ratio_threshold", type=float, default=2.4, help="if the gzip compression ratio is higher than this value, treat the decoding as failed")
-    verification.add_argument("--no_speech_threshold", type=float, help="DON'T USE THIS ARGUMENT if the probability of the <|nospeech|> token is higher than this value AND the decoding has failed due to `logprob_threshold`, consider the segment as silence")
+    verification.add_argument("--no_speech_threshold", type=float, default=0.8, help="if the probability of the <|nospeech|> token is higher than this value AND the decoding has failed due to `logprob_threshold`, consider the segment as silence")
     verification.add_argument("--padding", type=int, default=200, help="if the distance from the end of the audio is greater than this value, treat the sentence as incomplete (padding 100 = 1s)")
 
     audio = parser.add_argument_group("audio")
@@ -100,6 +101,8 @@ if __name__ == "__main__":
         while True:
             time.sleep(3)
             results = transcriber.read(r)
+            if args["verbose"]:
+                pprint(results)
             for result in results:
                 text = result.text
                 if translator:
