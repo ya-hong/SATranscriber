@@ -25,6 +25,7 @@ class Transcriber:
         best_of: int =                              10,
         fp16: bool =								True,
         verbose: bool =         					True,
+        **kwargs
     ) -> None:
 
         self.model: whisper.Whisper = whisper.load_model(model, "cuda")
@@ -61,6 +62,7 @@ class Transcriber:
     
     def __exit__(self, type, value, traceback):
         self.is_exited = True
+        print("EXIT!!!!")
         self.transcribe_thread.join()
 
     def temperature(self) -> float:

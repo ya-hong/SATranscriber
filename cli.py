@@ -1,6 +1,9 @@
+from typing import *
+
 import argparse
 import time
 import importlib
+import dataclasses
 
 import satranscriber
 # from satranscriber import audio, translator
@@ -10,13 +13,13 @@ def get_parser() -> argparse.ArgumentParser:
     import whisper
     from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
     
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     transcriber = parser.add_argument_group("transcriber")
     transcriber.add_argument("--model", default="medium", choices=whisper.available_models(), help="name of the Whisper model to use")
     transcriber.add_argument("--task", type=str, default="transcribe", choices=["transcribe", "translate"], help="whether to perform X->X speech recognition ('transcribe') or X->English translation ('translate')")
-    transcriber.add_argument("--language", type=str, default=None, choices=sorted(LANGUAGES.keys()) + sorted([k.title() for k in TO_LANGUAGE_CODE.keys()]), help="language spoken in the audio, specify None to perform language detection")
-    transcriber.add_argument("--temperature_list", type=float, nargs='+', default=(0), help="temperature to use for sampling")
+    transcriber.add_argument("--language", type=str, default="English", choices=sorted(LANGUAGES.keys()) + sorted([k.title() for k in TO_LANGUAGE_CODE.keys()]), help="language spoken in the audio, specify None to perform language detection")
+    transcriber.add_argument("--temperature", type=float, nargs='+', default=(0), help="temperature to use for sampling")
     transcriber.add_argument("--beam_size", type=int, default=10, help="number of beams in beam search, only applicable when temperature is zero")
     transcriber.add_argument("--best_of", type=int, default=10, help="number of candidates when sampling with non-zero temperature")
     transcriber.add_argument("--fp16", type=bool, default=True, help="whether to perform inference in fp16; True by default")
@@ -32,6 +35,9 @@ def get_parser() -> argparse.ArgumentParser:
 
     translator = parser.add_argument_group("translator")
     translator.add_argument("--translator_api", type=str, choices=["youdao", "baidu", "google"], help="translate api for X -> Y translate")
+    translator.add_argument("--app_key", type=str, help="youdao api app key / baidu api app id")
+    translator.add_argument("--app_secret", type=str, help="youdao api app secret / baidu api app key")
+    translator.add_argument("--secret_file", type=str, help="path to secret file")
     translator.add_argument("--source_lang", type=str, help="source language for tranlator api")
     translator.add_argument("--target_lang", type=str, help="target language for tranlator api")
 
@@ -39,13 +45,14 @@ def get_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    from pprint import pprint
     args = get_parser().parse_args().__dict__
     print(args)
 
     try:
         module = importlib.import_module("satranscriber.audio.{}".format(args["audio"]))
-        AudioStream: satranscriber.audio.Stream = getattr(module, "Stream")
-        audio_stream = AudioStream()
+        AudioStream = getattr(module, "Stream")
+        audio_stream: satranscriber.audio.Stream = AudioStream()
     except:
         print("failed to load audio module")
         raise
@@ -58,20 +65,40 @@ if __name__ == "__main__":
 
     try:
         translator = None
+        
+        if args["secret_file"]:
+            with open(args["secret_file"], "r") as f:
+                lines = f.readlines()
+            args["app_key"] = lines[0].strip()
+            args["app_secret"] = lines[1].strip()
+        
         if args["translator_api"]:
             module = importlib.import_module("satranscriber.translator.{}".format(args["translator_api"]))
             Translator = getattr(module, "Translator")
-            translator = Translator(args["source_lang"], args["target_lang"])
+            translator: satranscriber.translator.Translator = Translator(args["source_lang"], args["target_lang"])
+            translator.authentication(**args)
     except:
         print("failed to load translator")
         raise
 
+    verification = dict()
+    for filed in dataclasses.fields(satranscriber.ReadRequest):
+        if filed.name in args:
+            verification[filed.name] = args[filed.name]
+    r = satranscriber.ReadRequest(**verification)
+
     with audio_stream, transcriber:
         while True:
             time.sleep(3)
-            results = transcriber.read(satranscriber.ReadRequest(**args))
+            results = transcriber.read(r)
             for result in results:
+                pprint(result)
                 text = result.text
                 if translator:
                     text = translator.translate(text)
                 print(text)
+
+
+"""
+python .\cli.py --language ja --beam_size 15 --logprob_threshold -0.6 --compression_ratio_threshold 1.5 --translator_api google --secret_file api_youdao_apikey --source_lang jp --target_lang zh-CN
+"""
