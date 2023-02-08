@@ -7,63 +7,35 @@ import torch
 import whisper
 from whisper.audio import pad_or_trim, N_FRAMES
 from whisper import DecodingOptions, DecodingResult
-from whisper.tokenizer import get_tokenizer, Tokenizer
 import dataclasses
 
 
-def split_decode_result(tokenizer: Tokenizer, result: DecodingResult) -> List[DecodingResult]:
-    result_list = list()
-    tokens = result.tokens
 
-    min_start_token = tokens[0]
+# def update_results(self: "Transcriber", result_list: List[DecodingResult]):
+#     MAX_COMPRESSION_RATIO = 2.4
 
-    stoken_idx = 0
-    while stoken_idx < len(tokens):
-        if stoken_idx == len(tokens) - 1:
-            break
-        
-        for ttoken_idx in range(stoken_idx + 1, len(tokens)):
-            if tokens[ttoken_idx] > min_start_token:
-                break
-        
-        setence_tokens = tokens[stoken_idx:ttoken_idx+1]
-
-        result_list.append(DecodingResult(**{
-            **dataclasses.asdict(result),
-            "tokens": setence_tokens,
-            "text": tokenizer.decode(setence_tokens[1:-1]),
-        }))
-
-        stoken_idx = ttoken_idx + 1
-
-    return result_list
-
-
-def update_results(self: "Transcriber", result_list: List[DecodingResult]):
-    MAX_COMPRESSION_RATIO = 2.4
-
-    def better(A: DecodingResult, B: DecodingResult) -> bool:
-        if (A.compression_ratio < MAX_COMPRESSION_RATIO) == (B.compression_ratio < MAX_COMPRESSION_RATIO):
-            return A.avg_logprob > B.avg_logprob
-        return A.compression_ratio < MAX_COMPRESSION_RATIO
+#     def better(A: DecodingResult, B: DecodingResult) -> bool:
+#         if (A.compression_ratio < MAX_COMPRESSION_RATIO) == (B.compression_ratio < MAX_COMPRESSION_RATIO):
+#             return A.avg_logprob > B.avg_logprob
+#         return A.compression_ratio < MAX_COMPRESSION_RATIO
     
-    def update(idx: int, result: DecodingResult):
-        if idx < len(self.result_buffer):
-            self.result_buffer[idx] = result
-        else:
-            self.result_buffer.append(result)
+#     def update(idx: int, result: DecodingResult):
+#         if idx < len(self.result_buffer):
+#             self.result_buffer[idx] = result
+#         else:
+#             self.result_buffer.append(result)
 
-    """
-    注意temperature>0时结果是非确定的, 两次transcribe会有很大差异所以不好逐个比较
-    """
+#     """
+#     注意temperature>0时结果是非确定的, 两次transcribe会有很大差异所以不好逐个比较
+#     """
 
-    if self.temperature() == 0:
-        for idx, result in enumerate(result_list):
-            if idx >= len(self.result_buffer) or better(result, self.result_buffer[idx]):
-                update(idx, result)
-    else:
-        if len(self.result_buffer) == 0 or better(result_list[0], self.result_buffer[0]):
-            self.result_buffer = result_list
+#     if self.temperature() == 0:
+#         for idx, result in enumerate(result_list):
+#             if idx >= len(self.result_buffer) or better(result, self.result_buffer[idx]):
+#                 update(idx, result)
+#     else:
+#         if len(self.result_buffer) == 0 or better(result_list[0], self.result_buffer[0]):
+#             self.result_buffer = result_list
 
 
 def transcribe_step(self: "Transcriber"):
@@ -84,17 +56,4 @@ def transcribe_step(self: "Transcriber"):
         best_of=            None if self.temperature() == 0 else self.best_of,
     )
 
-    result: DecodingResult = model.decode(mel, options)
-
-    tokenizer: Tokenizer = get_tokenizer(
-        self.model.is_multilingual,
-        language=self.language, 
-        task=self.task)
-    
-    if mel.shape[-1] > self.NON_TRANSABLE_LENGTH and (result.avg_logprob < -1 or result.compression_ratio > 2.4):
-        # 达到可转录长度，但转录效果达不到baseline -> 升温
-        self.try_temperature_up()
-        return
-    
-    result_list = split_decode_result(tokenizer, result)
-    self.result_buffer = result_list
+    self.decode_result = model.decode(mel, options)

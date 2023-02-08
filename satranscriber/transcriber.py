@@ -55,7 +55,7 @@ class Transcriber:
         self.mel_offset: int = 0
         self.mel_buffer: torch.Tensor = torch.zeros((N_MELS, 0))
 
-        self.result_buffer: List[whisper.DecodingResult] = list()
+        self.decode_result: whisper.DecodingResult = None
         self.output_buffer: List[TranscribeResult] = list()
 
         self.transcribe_thread = threading.Thread(target=self.transcribe)
@@ -86,11 +86,14 @@ class Transcriber:
     def extend_offset(self, offset):
         """
         将最旧的offset位mel谱设置为不会再访问
-        同时将温度置0
+        由于接下来转录的音频发生了变化，所以：
+            将温度置0
+            将decode_result置为None
         """
         self.mel_offset += offset
         self.mel_buffer = self.mel_buffer[:, offset:]
         self.temperature_idx = 0
+        self.decode_result = None
     
     def transcribe(self):
         while not self.is_exited:
@@ -116,17 +119,10 @@ class Transcriber:
         self.extend_mel(log_mel_spectrogram(audio))
     
     def read(self, r: ReadRequest = ReadRequest()) -> List[TranscribeResult]:
-
-        def qualify(result: TranscribeResult):
-            return result.avg_logprob > r.logprob_threshold and \
-                result.compression_ratio < r.compression_ratio_threshold and \
-                result.no_speech_prob < r.no_speech_threshold and \
-                len(result.text) >= r.length_threshold
-        
         self.try_read = True
         self.lock.acquire()
         try:
-            buffer = [result for result in self.output_buffer if qualify(result)]
+            buffer = [result for result in self.output_buffer if r.is_qulity(result)]
             self.output_buffer = []
             return buffer + read_function(self, r)
         except:
