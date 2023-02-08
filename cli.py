@@ -4,6 +4,7 @@ import argparse
 import time
 import importlib
 import dataclasses
+import json
 
 import satranscriber
 # from satranscriber import audio, translator
@@ -14,6 +15,7 @@ def get_parser() -> argparse.ArgumentParser:
     from whisper.tokenizer import LANGUAGES, TO_LANGUAGE_CODE
     
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("config", default=None, type=str, help="path to json config file")
 
     transcriber = parser.add_argument_group("transcriber")
     transcriber.add_argument("--model", default="medium", choices=whisper.available_models(), help="name of the Whisper model to use")
@@ -46,8 +48,15 @@ def get_parser() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     from pprint import pprint
+    
     args = get_parser().parse_args().__dict__
-    print(args)
+
+    if args["config"]:
+        with open(args["config"], "r") as f:
+            cfg = json.loads(f.read())
+        args = {**args, **cfg}
+
+    pprint(args)
 
     try:
         module = importlib.import_module("satranscriber.audio.{}".format(args["audio"]))
@@ -92,13 +101,7 @@ if __name__ == "__main__":
             time.sleep(3)
             results = transcriber.read(r)
             for result in results:
-                pprint(result)
                 text = result.text
                 if translator:
                     text = translator.translate(text)
                 print(text)
-
-
-"""
-python .\cli.py --language ja --beam_size 15 --logprob_threshold -0.6 --compression_ratio_threshold 1.5 --translator_api google --secret_file api_youdao_apikey --source_lang jp --target_lang zh-CN
-"""
