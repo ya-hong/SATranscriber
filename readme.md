@@ -2,9 +2,20 @@
 
 一个基于[openai/Whisper](https://github.com/openai/whisper)的实时语音流转录工具。
 
+# example
+
+转录扬声器的日语音频并翻译
+
+```bash
+pip install -r requirements.txt
+python cli.py --config example/ja2zh.json
+```
+
 # Usage
 
 ## cli
+
+获取提示
 
 ```shell
 python3 cli.py -h
@@ -16,7 +27,7 @@ python3 cli.py -h
 python3 cli.py --audio speaker --language ja --translator_api google --source_lang ja --target_lang zh-CN
 ```
 
-从文件读取配置
+从配置文件启动
 
 ```shell
 python3 cli.py --config path/to/config.json

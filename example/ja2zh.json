@@ -1,0 +1,13 @@
+{
+	"language": "ja",
+	"beam_size": 10,
+	"logprob_threshold": -0.6,
+	"compression_ratio_threshold": 1.8,
+	"no_speech_threshold": 0.7,
+	"translator_api": "google",
+	"source_lang": "ja",
+	"target_lang": "zh-CN",
+	"temperature": [0],
+	"fp16": true,
+	"verbose": true
+}

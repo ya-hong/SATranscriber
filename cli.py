@@ -107,5 +107,6 @@ if __name__ == "__main__":
                     try:
                         text = translator.translate(text)
                     except:
+                        print("error occurred while translating")
                         pass
                 print(text)
