@@ -47,7 +47,7 @@ transcriber = satranscriber.Transcriber(audio_stream=audio_stream)
 with audio_stream, transcriber:
 	while True:
 		time.sleep(3)
-		for result in transcriber.read(satranscriber.ReadRequest()):
+		for result in transcriber.read():
 			print(result.text)
 ```
 
