@@ -4,8 +4,6 @@ from whisper import DecodingResult
 from whisper.audio import HOP_LENGTH, SAMPLE_RATE
 from whisper.tokenizer import get_tokenizer, Tokenizer
 
-if TYPE_CHECKING:
-    from satranscriber.transcriber import Transcriber
 
 
 @dataclasses.dataclass
@@ -14,7 +12,7 @@ class TranscribeResult:
     tokens: List[int]
     start: float
     end: float
-    sposition: int 
+    sposition: int
     tposition: int
     avg_logprob: float
     compression_ratio: float
@@ -22,7 +20,7 @@ class TranscribeResult:
     temprature: float
 
 
-def split_decode_result(tokenizer: Tokenizer, result: DecodingResult) -> List[DecodingResult]:
+def split_decode_result(result: DecodingResult, tokenizer: Tokenizer) -> List[DecodingResult]:
     result_list = list()
     tokens = result.tokens
 
@@ -50,7 +48,7 @@ def split_decode_result(tokenizer: Tokenizer, result: DecodingResult) -> List[De
     return result_list
 
 
-def to_transcribe_results(transcriber: "Transcriber", results: List[DecodingResult]) -> List[TranscribeResult]:
+def to_transcribe_results(results: List[DecodingResult], start_offset: int, input_stride: int) -> List[TranscribeResult]:
     if len(results) == 0:
         return []
     stoken = results[0].tokens[0]
@@ -58,10 +56,10 @@ def to_transcribe_results(transcriber: "Transcriber", results: List[DecodingResu
     transcribe_results = [TranscribeResult(
         text                = result.text, 
         tokens              = result.tokens,
-        start               = (transcriber.mel_offset + (result.tokens[0] - stoken) * transcriber.input_stride) * HOP_LENGTH / SAMPLE_RATE,
-        end                 = (transcriber.mel_offset + (result.tokens[-1] - stoken) * transcriber.input_stride) * HOP_LENGTH / SAMPLE_RATE,
-        sposition           = transcriber.mel_offset + (result.tokens[0] - stoken) * transcriber.input_stride,
-        tposition           = transcriber.mel_offset + (result.tokens[-1] - stoken) * transcriber.input_stride,
+        start               = (start_offset + (result.tokens[0] - stoken) * input_stride) * HOP_LENGTH / SAMPLE_RATE,
+        end                 = (start_offset + (result.tokens[-1] - stoken) * input_stride) * HOP_LENGTH / SAMPLE_RATE,
+        sposition           = start_offset + (result.tokens[0] - stoken) * input_stride,
+        tposition           = start_offset + (result.tokens[-1] - stoken) * input_stride,
         avg_logprob         = result.avg_logprob,
         compression_ratio   = result.compression_ratio,
         no_speech_prob      = result.no_speech_prob,
@@ -69,3 +67,4 @@ def to_transcribe_results(transcriber: "Transcriber", results: List[DecodingResu
     ) for result in results]
 
     return transcribe_results
+

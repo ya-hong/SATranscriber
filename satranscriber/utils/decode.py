@@ -1,13 +1,9 @@
 from typing import *
 
-if TYPE_CHECKING:
-    from satranscriber.transcriber import Transcriber
-
 import torch
 import whisper
 from whisper.audio import pad_or_trim, N_FRAMES
 from whisper import DecodingOptions, DecodingResult
-import dataclasses
 
 
 
@@ -37,23 +33,28 @@ import dataclasses
 #         if len(self.result_buffer) == 0 or better(result_list[0], self.result_buffer[0]):
 #             self.result_buffer = result_list
 
+def decode(model: whisper.Whisper, mel_buffer: torch.Tensor, dtype, **decode_options) -> DecodingResult:
+    mel = pad_or_trim(mel_buffer, N_FRAMES).to(model.device).to(dtype)
+    options = DecodingOptions(**decode_options)
+    return model.decode(mel, options)
 
-def transcribe_step(self: "Transcriber"):
-    """
-    刷新buffer内前30s音频的转录结果
-    """
 
-    model: whisper.Whisper = self.model
+# def transcribe_step(self: "Transcriber"):
+#     """
+#     刷新buffer内前30s音频的转录结果
+#     """
 
-    mel = pad_or_trim(self.mel_buffer, N_FRAMES).to(model.device).to(self.dtype)
+#     model: whisper.Whisper = self.model
 
-    options = DecodingOptions(
-        task=               self.task,
-        language=           self.language,
-        temperature=        self.temperature(),
-        fp16=               True if self.dtype == torch.float16 else False,
-        beam_size=          self.beam_size if self.temperature() == 0 else None,
-        best_of=            None if self.temperature() == 0 else self.best_of,
-    )
+#     mel = pad_or_trim(self.mel_buffer, N_FRAMES).to(model.device).to(self.dtype)
 
-    self.decode_result = model.decode(mel, options)
+#     options = DecodingOptions(
+#         task=               self.task,
+#         language=           self.language,
+#         temperature=        self.temperature(),
+#         fp16=               True if self.dtype == torch.float16 else False,
+#         beam_size=          self.beam_size if self.temperature() == 0 else None,
+#         best_of=            None if self.temperature() == 0 else self.best_of,
+#     )
+
+#     self.decode_result = model.decode(mel, options)
