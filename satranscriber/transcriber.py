@@ -1,17 +1,18 @@
 from typing import *
 import torch
 import threading
-import torch
+import time
 
 import whisper
 from whisper.audio import N_FRAMES, N_MELS, N_FFT
 from whisper.audio import log_mel_spectrogram
+from whisper.tokenizer import get_tokenizer, Tokenizer
 
 from .audio import Stream
-from .method.read import TranscribeResult, ReadRequest
-from .method.read import read as read_function
+# from .method.read import TranscribeResult
+# from .method.read import read as read_function
 from .method.transcribe import transcribe_step as transcribe_step_function
-
+from .method.parse_result import split_decode_result, to_transcribe_results, TranscribeResult
 
 class Transcriber:
     NON_TRANSABLE_LENGTH = 200
@@ -19,24 +20,40 @@ class Transcriber:
     def __init__(
         self,
         audio_stream: Stream,
-        model: str =                                "medium",
-        task: str =             					"transcribe",
-        language: str =         					"English",
-        temperature: Union[Tuple[float], float] = 	(0, 0.2, 0.6),
-        beam_size: int =                            10,
-        best_of: int =                              10,
-        fp16: bool =								True,
-        verbose: bool =         					False,
+        model: str                                  = "medium",
+        task: str                                   = "transcribe",
+
+        # transcriber arguments
+        language: str                               = "English",
+        temperature: Union[Tuple[float], float]     = (0, 0.2, 0.6),
+        beam_size: int                              = 10,
+        best_of: int                                = 10,
+        
+        # decode arguments 
+        logprob_threshold: float				    = -1.0,
+        compression_ratio_threshold: float          = 2.4,
+        no_speech_threshold: float				    = 0.6,
+        padding: int 							    = 200,
+
+        fp16: bool                                  = True,
+        verbose: bool                               = False,
         **kwargs
     ) -> None:
 
         self.model: whisper.Whisper = whisper.load_model(model, "cuda")
         self.audio_stream = audio_stream
         self.task = task
+
         self.language = language 
         self.temperature_list = temperature if isinstance(temperature, Iterable) else [temperature]
         self.beam_size = beam_size
         self.best_of = best_of
+        
+        self.logprob_threshold = logprob_threshold
+        self.compression_ratio_threshold = compression_ratio_threshold
+        self.no_speech_threshold = no_speech_threshold
+        self.padding = padding
+
         self.dtype = torch.float16 if fp16 else torch.float32
         self.verbose = verbose
 
@@ -64,8 +81,9 @@ class Transcriber:
     
     def __exit__(self, type, value, traceback):
         self.is_exited = True
-        print("EXIT!!!!")
-        self.transcribe_thread.join()
+        self.try_log("EXIT!!!")
+        if self.transcribe_thread.isAlive():
+            self.transcribe_thread.join(timeout=1)
 
     def temperature(self) -> float:
         return self.temperature_list[self.temperature_idx]
@@ -95,40 +113,73 @@ class Transcriber:
         self.temperature_idx = 0
         self.decode_result = None
     
-    def transcribe(self):
-        while not self.is_exited:
-            if self.try_read:
-                continue
+    def is_quality(self, result: whisper.DecodingResult):
+        return result.avg_logprob > self.logprob_threshold and \
+            result.compression_ratio < self.compression_ratio_threshold and \
+            result.no_speech_prob < self.no_speech_threshold
 
+    def transcribe(self):
+        INIT_STEP = 3
+        step = INIT_STEP
+        while not self.is_exited:
+            self.try_log("wait audio buffer for {}s".format(step))
+            time.sleep(step) # 实际间隔为 step + process_time
             self.lock.acquire()
             try:
-                if self.mel_buffer.shape[-1] > N_FRAMES:
-                    self.output_buffer.extend(read_function(self, ReadRequest(padding=500)))
-                self.read_step()
+                self.read_audio_step()
                 transcribe_step_function(self)
+
+                if not self.is_quality(self.decode_result):
+                    can_temp_up = self.try_temperature_up()
+                    step /= 2
+                    self.try_log("low quality transcribe result!")
+                    self.try_log(self.decode_result)
+                    if step < 0.1 and not can_temp_up:
+                        self.try_log("drop!")
+                        self.extend_offset(self.mel_buffer.shape[-1])
+                        step = INIT_STEP
+                    continue
+
+                tokenizer: Tokenizer = get_tokenizer(
+                    self.model.is_multilingual,
+                    language=self.language, 
+                    task=self.task)
+                results: List[TranscribeResult] = to_transcribe_results(self, split_decode_result(tokenizer, self.decode_result))
+
+                def is_stable(result: TranscribeResult):
+                    return result.tposition < self.mel_offset + self.mel_buffer.shape[-1] - self.padding
+
+                results = [result for result in results if is_stable(result)]
+                if len(results):
+                    self.output_buffer.extend(results)
+                    self.extend_offset(results[-1].tposition - self.mel_offset)
+
+                step = INIT_STEP
             except:
                 self.is_exited = True
                 raise
             finally:
                 self.lock.release()
     
-    def read_step(self):
+    def read_audio_step(self):
         audio = self.audio_stream.read()
         if len(audio) < N_FFT:
             return
         self.extend_mel(log_mel_spectrogram(audio))
     
-    def read(self, r: ReadRequest = ReadRequest()) -> List[TranscribeResult]:
-        self.try_read = True
+    def read(self) -> List[TranscribeResult]:
         self.lock.acquire()
         try:
-            buffer = [result for result in self.output_buffer if r.is_qulity(result)]
-            self.output_buffer = []
-            return buffer + read_function(self, r)
+            buffer, self.output_buffer = self.output_buffer, []
+            return buffer
         except:
             self.is_exited = True
             raise
         finally:
-            self.try_read = False
             self.lock.release()
+    
+    def try_log(self, log) -> None:
+        if self.verbose:
+            import pprint
+            pprint.pprint(log)
 

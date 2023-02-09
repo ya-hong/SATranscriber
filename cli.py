@@ -91,16 +91,10 @@ if __name__ == "__main__":
         print("failed to load translator")
         raise
 
-    verification = dict()
-    for filed in dataclasses.fields(satranscriber.ReadRequest):
-        if filed.name in args:
-            verification[filed.name] = args[filed.name]
-    r = satranscriber.ReadRequest(**verification)
-
     with audio_stream, transcriber:
         while True:
-            time.sleep(3)
-            results = transcriber.read(r)
+            time.sleep(2)
+            results = transcriber.read()
             for result in results:
                 text = result.text
                 if translator:
