@@ -59,25 +59,25 @@ class Stream(stream.Stream):
         with self.lock:
             if self.buffer.shape[-1] == 0:
                 return np.ndarray(0, np.float32)
-            result = librosa.resample(
-                self.buffer, 
-                res_type="kaiser_fast", 
-                orig_sr=self.speaker_sr, 
-                target_sr=self.SAMPLE_RATE, 
-                scale=True
-            )
-            """
-            scale 需要为True, 要保证音量
-            """
-            self.buffer = np.ndarray((self.speaker_ac, 0), dtype=np.float32)
-            
-            return np.sum(result, axis=0, keepdims=False) / self.speaker_ac / 32768.0
+            buffer, self.buffer = self.buffer, np.ndarray((self.speaker_ac, 0), dtype=np.float32)
+        
+        result = librosa.resample(
+            buffer, 
+            res_type="kaiser_fast", 
+            orig_sr=self.speaker_sr, 
+            target_sr=self.SAMPLE_RATE, 
+            scale=True
+        )
+        """
+        scale 需要为True, 要保证音量
+        """
+        return np.sum(result, axis=0, keepdims=False) / self.speaker_ac / 32768.0
 
     def callback(self, in_data, frame_count, time_info, status):
+        mat = np.frombuffer(
+            in_data, dtype=np.int16
+        ).astype(np.float32).reshape((self.speaker_ac, -1), order="F")
         with self.lock: 
-            mat = np.frombuffer(
-                in_data, dtype=np.int16
-            ).astype(np.float32).reshape((self.speaker_ac, -1), order="F")
             self.buffer = np.concatenate([self.buffer, mat], axis=1)
         return (None, pyaudio.paContinue)
 
